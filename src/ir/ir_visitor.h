@@ -10,15 +10,17 @@ namespace cmm {
 namespace ir {
 
 // ============================================================================
-// 成员 3 & 成员 4 内部协作 Visitor 骨架（避免两人修改同一文件产生 Git 冲突）
+// [草案 / DRAFT] 成员 3 & 成员 4 内部协作 Visitor 骨架
 //
-// 分工边界：
-//   - src/ir/ir_generator.cpp : 公共入口（已接好，3/4 号通常无需改动）
-//   - src/ir/ir_basic.cpp     : 成员 3 独占（符号表、全局/局部声明、函数定义/传参、return、赋值、单目与四则运算）
-//   - src/ir/ir_ctrl.cpp      : 成员 4 独占（if-else 基本块、cond、关系/相等比较、&&/|| 短路、浮点运算与类型转换）
+// 注意：目前尚未拿到 third_party/compiler_ir 源码，以下 visit* 返回值暂为 void。
+// 拿到 compiler_ir 后，表达式类 visit*（visitExp/visitAddExp/visitMulExp 等）
+// 需按 compiler_ir 真实类型改为返回 Value* 等，并补充 Module / IRBuilder /
+// 作用域符号表等共享成员；若 compiler_ir 自带 Visitor 基类则优先采用自带定义。
 //
-// 当 third_party/compiler_ir 就绪后，成员 3/4 可在此类中补充
-// Module / IRBuilder / ScopeSymbolTable / Value* 等共享成员字段。
+// 建议分工边界：
+//   - src/ir/ir_generator.cpp : 公共入口（已接好）
+//   - src/ir/ir_basic.cpp     : 成员 3（符号表、声明、函数、return、赋值、单目与四则）
+//   - src/ir/ir_ctrl.cpp      : 成员 4（if-else、cond、比较、&&/|| 短路、浮点转换）
 // ============================================================================
 class IRVisitor {
 public:

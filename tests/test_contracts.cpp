@@ -26,19 +26,20 @@ int main() {
         assert(t.category != cmm::TokenCategory::ERROR);
     }
 
-    // Verify exact symbol & normalizedText contract for Member 2 and Member 3/4
+    // Verify exact symbol, stackDisplay & normalizedText contract for Member 2 and Member 3/4
     // Tokens: VoID MaIn ( ) { CoNsT InT _X1 = ! 0 ; FLOAT Pi = 3.14 ; } EOF
     const auto& pt = res.parserTokens;
-    assert(pt[0].lexeme == "VoID" && pt[0].symbol == "void" && pt[0].normalizedText() == "void");
-    assert(pt[1].lexeme == "MaIn" && pt[1].symbol == "Ident" && pt[1].normalizedText() == "main");
-    assert(pt[5].lexeme == "CoNsT" && pt[5].symbol == "const" && pt[5].normalizedText() == "const");
-    assert(pt[6].lexeme == "InT" && pt[6].symbol == "int" && pt[6].normalizedText() == "int");
-    assert(pt[7].lexeme == "_X1" && pt[7].symbol == "Ident" && pt[7].normalizedText() == "_X1");
-    assert(pt[9].lexeme == "!" && pt[9].symbol == "!" && pt[9].normalizedText() == "!");
-    assert(pt[10].lexeme == "0" && pt[10].symbol == "IntConst" && pt[10].normalizedText() == "0");
-    assert(pt[12].lexeme == "FLOAT" && pt[12].symbol == "float" && pt[12].normalizedText() == "float");
-    assert(pt[13].lexeme == "Pi" && pt[13].symbol == "Ident" && pt[13].normalizedText() == "Pi");
-    assert(pt[15].lexeme == "3.14" && pt[15].symbol == "floatConst" && pt[15].normalizedText() == "3.14");
+    assert(pt[0].lexeme == "VoID" && pt[0].symbol == "void" && pt[0].stackDisplay() == "VoID" && pt[0].normalizedText() == "void");
+    assert(pt[1].lexeme == "MaIn" && pt[1].symbol == "Ident" && pt[1].stackDisplay() == "Ident" && pt[1].normalizedText() == "main");
+    assert(pt[5].lexeme == "CoNsT" && pt[5].symbol == "const" && pt[5].stackDisplay() == "CoNsT" && pt[5].normalizedText() == "const");
+    assert(pt[6].lexeme == "InT" && pt[6].symbol == "int" && pt[6].stackDisplay() == "InT" && pt[6].normalizedText() == "int");
+    assert(pt[7].lexeme == "_X1" && pt[7].symbol == "Ident" && pt[7].stackDisplay() == "Ident" && pt[7].normalizedText() == "_X1");
+    assert(pt[8].lexeme == "=" && pt[8].symbol == "=" && pt[8].stackDisplay() == "=" && pt[8].normalizedText() == "=");
+    assert(pt[9].lexeme == "!" && pt[9].symbol == "!" && pt[9].stackDisplay() == "!" && pt[9].normalizedText() == "!");
+    assert(pt[10].lexeme == "0" && pt[10].symbol == "IntConst" && pt[10].stackDisplay() == "IntConst" && pt[10].normalizedText() == "0");
+    assert(pt[12].lexeme == "FLOAT" && pt[12].symbol == "float" && pt[12].stackDisplay() == "FLOAT" && pt[12].normalizedText() == "float");
+    assert(pt[13].lexeme == "Pi" && pt[13].symbol == "Ident" && pt[13].stackDisplay() == "Ident" && pt[13].normalizedText() == "Pi");
+    assert(pt[15].lexeme == "3.14" && pt[15].symbol == "floatConst" && pt[15].stackDisplay() == "floatConst" && pt[15].normalizedText() == "3.14");
 
     // 2. Test ASTNode factory, isTerminal() on empty non-terminal, and query helpers
     auto emptyCompUnit = cmm::ASTNode::makeNode("compUnit");

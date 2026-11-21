@@ -32,7 +32,7 @@ inline std::string categoryToString(TokenCategory cat) {
 // 成员 1 -> 成员 2 的核心数据契约
 struct Token {
     std::string lexeme;     // 源码原始词素，如 "VoID"、"MaIn"、"3.14"、"_X1"
-    std::string symbol;     // 归一化后的附录 1 终结符名（成员 2 一律用此字段查 SLR 表）：
+    std::string symbol;     // 归一化后的附录 1 终结符名（成员 2 用此字段查 SLR 表；打印归约序列请用 stackDisplay()/lexeme）：
                             //   关键字（除 main）-> 小写原文："int","void","if","else","return","const","float"
                             //   关键字 main     -> "Ident"（因附录 1 规则 11 为 funcDef -> funcType Ident '(' ...）
                             //   普通标识符       -> "Ident"
@@ -60,6 +60,18 @@ struct Token {
             }
         }
         return lower;
+    }
+
+    // 归约序列中“移进(move)”行要打印的符号（成员 2 打印用，查表仍用 symbol）。
+    // 规则来自 lab4 官方参考输出的统计：
+    //   Ident / IntConst / floatConst -> 打印终结符名，如 "Ident#a"、"IntConst#10"、"Ident#MaIn"
+    //   其余（关键字、运算符、界符）  -> 打印源码原文，如 "VoID#VoID"、"InT#InT"、"=#="
+    // 因此 move 行可直接写成：tok.stackDisplay() + "#" + tok.lexeme
+    std::string stackDisplay() const {
+        if (symbol == "Ident" || symbol == "IntConst" || symbol == "floatConst") {
+            return symbol;
+        }
+        return lexeme;
     }
 
     // 按大作业规定格式格式化单行输出：[词素]\t<[种别],[内容]>
