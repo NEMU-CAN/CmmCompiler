@@ -1,23 +1,23 @@
+# POSIX Makefile (Linux / macOS / WSL / Git Bash)
+# Windows cmd / PowerShell 请直接运行 build.bat
+
 CXX      := g++
 CXXFLAGS := -std=c++17 -O2 -Wall -Wextra -Iinclude
 
-TARGET   := build/cmmc.exe
-SRCS     := src/main.cpp \
-            $(wildcard src/lexer/*.cpp) \
-            $(wildcard src/parser/*.cpp) \
-            $(wildcard src/ir/*.cpp)
+TARGET   := build/cmmc
+SRCS     := $(shell find src -name '*.cpp')
 
-# 若后续引入了 third_party/compiler_ir，可取消下方注释并将对应头文件目录加入 CXXFLAGS
+# 引入 third_party/compiler_ir 后可取消下方注释并按实际路径微调：
 # CXXFLAGS += -Ithird_party/compiler_ir/include
-# SRCS     += $(wildcard third_party/compiler_ir/src/*.cpp)
+# SRCS     += $(shell find third_party/compiler_ir/src -name '*.cpp')
 
 .PHONY: all clean
 
 all: $(TARGET)
 
 $(TARGET): $(SRCS)
-	@if not exist build mkdir build
+	@mkdir -p build
 	$(CXX) $(CXXFLAGS) $(SRCS) -o $(TARGET)
 
 clean:
-	@if exist build rmdir /s /q build
+	@rm -rf build

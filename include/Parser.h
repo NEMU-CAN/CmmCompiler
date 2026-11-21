@@ -26,6 +26,9 @@ public:
     // reductionOut：若非空，按大作业规定格式输出 SLR 分析步骤：
     //   [序号]\t[栈顶符号]#[面临输入符号]\t[reduction|move|accept|error]
     ParseResult parse(const std::vector<Token>& tokens, std::ostream* reductionOut = nullptr);
+
+    // 导出 FIRST/FOLLOW 集合、LR(0) 项目集规范族与 SLR 分析表（用于开发报告第 2 部分）
+    bool dumpSLRTable(std::ostream& os) const;
 };
 
 }  // namespace cmm

@@ -2,6 +2,7 @@
 
 #include "Token.h"
 
+#include <memory>
 #include <ostream>
 #include <string>
 #include <vector>
@@ -20,6 +21,11 @@ public:
     Lexer();
     ~Lexer();
 
+    Lexer(const Lexer&) = delete;
+    Lexer& operator=(const Lexer&) = delete;
+    Lexer(Lexer&&) noexcept;
+    Lexer& operator=(Lexer&&) noexcept;
+
     // 对 C-- 源码执行 NFA -> DFA -> 最小化 DFA 扫描
     LexResult tokenize(const std::string& source) const;
 
@@ -31,6 +37,10 @@ public:
 
     // 导出自动机三阶段信息（用于开发报告第 1 部分）
     bool dumpAutomata(std::ostream& os) const;
+
+private:
+    struct Impl;
+    std::unique_ptr<Impl> impl_;
 };
 
 }  // namespace cmm

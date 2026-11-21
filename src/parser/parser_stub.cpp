@@ -12,4 +12,9 @@ ParseResult Parser::parse(const std::vector<Token>& /*tokens*/, std::ostream* re
     return res;
 }
 
+bool Parser::dumpSLRTable(std::ostream& os) const {
+    os << "# SLR table dump not implemented yet (Member 2 TODO)\n";
+    return true;
+}
+
 }  // namespace cmm
