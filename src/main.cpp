@@ -8,17 +8,19 @@
 #include <string>
 
 static void printUsage(const char* prog) {
-    std::cerr << "Usage: " << prog << " [--lex | --parse | --ast | --ir] [--symbols] <input.sy> [-o <output>]\n"
-              << "  --lex      Run lexer only and print token sequence\n"
-              << "  --parse    Run lexer + SLR parser and print reduction sequence\n"
-              << "  --ast      Run lexer + SLR parser and dump AST\n"
-              << "  --ir       Run full pipeline and emit LLVM IR (.ll) [default]\n"
-              << "  --symbols  Print lexical symbol table (with --lex)\n";
+    std::cerr << "Usage: " << prog << " [--lex | --parse | --ast | --ir] [--symbols] [--dump-automata <json>] <input.sy> [-o <output>]\n"
+              << "  --lex                   Run lexer only and print token sequence\n"
+              << "  --parse                 Run lexer + SLR parser and print reduction sequence\n"
+              << "  --ast                   Run lexer + SLR parser and dump AST\n"
+              << "  --ir                    Run full pipeline and emit LLVM IR (.ll) [default]\n"
+              << "  --symbols               Print lexical symbol table (with --lex)\n"
+              << "  --dump-automata <json>  Dump NFA/DFA/MinDFA tables to JSON\n";
 }
 
 int main(int argc, char* argv[]) {
     std::string mode = "ir";
     bool showSymbols = false;
+    std::string dumpAutomataPath;
     std::string inputPath;
     std::string outputPath;
 
@@ -29,6 +31,7 @@ int main(int argc, char* argv[]) {
         else if (arg == "--ast") mode = "ast";
         else if (arg == "--ir") mode = "ir";
         else if (arg == "--symbols") showSymbols = true;
+        else if (arg == "--dump-automata" && i + 1 < argc) dumpAutomataPath = argv[++i];
         else if (arg == "-o" && i + 1 < argc) outputPath = argv[++i];
         else if (arg == "-h" || arg == "--help") {
             printUsage(argv[0]);
@@ -68,6 +71,13 @@ int main(int argc, char* argv[]) {
     }
 
     cmm::Lexer lexer;
+    if (!dumpAutomataPath.empty()) {
+        std::ofstream dumpOfs(dumpAutomataPath);
+        if (!dumpOfs || !lexer.dumpAutomata(dumpOfs)) {
+            std::cerr << "Failed to write automata JSON: " << dumpAutomataPath << "\n";
+            return 1;
+        }
+    }
     cmm::LexResult lexRes = lexer.tokenize(source);
 
     if (mode == "lex") {

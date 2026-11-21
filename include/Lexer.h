@@ -2,6 +2,7 @@
 
 #include "Token.h"
 
+#include <memory>
 #include <ostream>
 #include <string>
 #include <vector>
@@ -31,6 +32,10 @@ public:
 
     // 导出自动机三阶段信息（用于开发报告第 1 部分）
     bool dumpAutomata(std::ostream& os) const;
+
+private:
+    struct Impl;
+    std::unique_ptr<Impl> impl_;
 };
 
 }  // namespace cmm
