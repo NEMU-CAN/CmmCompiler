@@ -8,19 +8,25 @@
 #include <string>
 
 static void printUsage(const char* prog) {
-    std::cerr << "Usage: " << prog << " [--lex | --parse | --ast | --ir] [--symbols] [--dump-automata <json>] <input.sy> [-o <output>]\n"
+    std::cerr << "Usage: " << prog << " [options] <input.sy> [-o <output>]\n"
+              << "Modes:\n"
               << "  --lex                   Run lexer only and print token sequence\n"
               << "  --parse                 Run lexer + SLR parser and print reduction sequence\n"
               << "  --ast                   Run lexer + SLR parser and dump AST\n"
               << "  --ir                    Run full pipeline and emit LLVM IR (.ll) [default]\n"
+              << "Options:\n"
               << "  --symbols               Print lexical symbol table (with --lex)\n"
-              << "  --dump-automata <json>  Dump NFA/DFA/MinDFA tables to JSON\n";
+              << "  --strict-lex            Abort before parsing if lexical errors exist\n"
+              << "  --dump-automata <json>  Dump NFA/DFA/MinDFA tables to JSON\n"
+              << "  --dump-slr <file>       Dump FIRST/FOLLOW/LR(0)/SLR table\n";
 }
 
 int main(int argc, char* argv[]) {
     std::string mode = "ir";
     bool showSymbols = false;
+    bool strictLex = false;
     std::string dumpAutomataPath;
+    std::string dumpSlrPath;
     std::string inputPath;
     std::string outputPath;
 
@@ -31,7 +37,9 @@ int main(int argc, char* argv[]) {
         else if (arg == "--ast") mode = "ast";
         else if (arg == "--ir") mode = "ir";
         else if (arg == "--symbols") showSymbols = true;
+        else if (arg == "--strict-lex") strictLex = true;
         else if (arg == "--dump-automata" && i + 1 < argc) dumpAutomataPath = argv[++i];
+        else if (arg == "--dump-slr" && i + 1 < argc) dumpSlrPath = argv[++i];
         else if (arg == "-o" && i + 1 < argc) outputPath = argv[++i];
         else if (arg == "-h" || arg == "--help") {
             printUsage(argv[0]);
@@ -89,7 +97,24 @@ int main(int argc, char* argv[]) {
         return 0;
     }
 
+    if (!lexRes.errors.empty()) {
+        for (const auto& err : lexRes.errors) {
+            std::cerr << "[Lexical Warning] " << err << "\n";
+        }
+        if (strictLex) {
+            return 1;
+        }
+    }
+
     cmm::Parser parser;
+    if (!dumpSlrPath.empty()) {
+        std::ofstream slrOfs(dumpSlrPath);
+        if (!slrOfs || !parser.dumpSLRTable(slrOfs)) {
+            std::cerr << "Failed to write SLR table: " << dumpSlrPath << "\n";
+            return 1;
+        }
+    }
+
     cmm::ParseResult parseRes = parser.parse(lexRes.parserTokens, mode == "parse" ? out : nullptr);
     if (!parseRes.success) {
         for (const auto& err : parseRes.errors) {

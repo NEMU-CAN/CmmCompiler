@@ -1,5 +1,7 @@
 #pragma once
 
+#include "Token.h"
+
 #include <iostream>
 #include <memory>
 #include <string>
@@ -14,32 +16,43 @@ namespace cmm {
 // 设计原则：
 // 1. 严格贴合任务书第 3~4 页的 Visitor 伪代码风格：
 //      ctx->children[i]->type / ctx->getText()
-// 2. 非终结符节点的 type 统一使用附录 1 文法中的精确名称：
-//      "Program", "compUnit", "decl", "constDecl", "bType", "constDef",
-//      "constInitVal", "varDecl", "varDef", "initVal", "funcDef", "funcType",
-//      "funcFParams", "funcFParam", "block", "blockItem", "stmt", "exp",
-//      "cond", "lVal", "primaryExp", "number", "unaryExp", "unaryOp",
-//      "funcRParams", "funcRParam", "mulExp", "addExp", "relExp", "eqExp",
-//      "lAndExp", "lOrExp", "constExp"
-// 3. 终结符节点的 type 使用归一化终结符名（与 Token::symbol 一致），
-//    text 保存源码词素（如 "Ident" 节点 text="a"，"IntConst" 节点 text="10"）。
+// 2. 非终结符节点的 type 严格使用附录 1 文法中的精确名称（详见 INTERFACE.md）。
+// 3. 成员 2 构造终结符节点时务必调用 ASTNode::makeTerminal(tok)，保证：
+//      - type == tok.symbol（归一化终结符名）
+//      - text == tok.normalizedText()（关键字已转小写，如 "InT"->"int"、"MaIn"->"main"）
+//      - terminal == true
 // ============================================================================
 struct ASTNode {
-    std::string type;  // 文法符号名（非终结符或终结符）
-    std::string text;  // 终结符文本（非终结符可留空）
-    int line = 0;      // 源码行号（用于语义报错定位）
-    int col = 0;       // 源码列号
+    std::string type;       // 文法符号名（非终结符或归一化终结符）
+    std::string text;       // 终结符归一化文本（非终结符留空）
+    int line = 0;           // 源码行号（1-based，用于语义报错定位）
+    int col = 0;            // 源码列号（1-based）
+    bool terminal = false;  // 显式区分终结符与空非终结符
     std::vector<std::unique_ptr<ASTNode>> children;
 
     ASTNode() = default;
-    ASTNode(std::string nodeType, std::string nodeText = "", int ln = 0, int cl = 0)
-        : type(std::move(nodeType)), text(std::move(nodeText)), line(ln), col(cl) {}
+    ASTNode(std::string nodeType, std::string nodeText = "", int ln = 0, int cl = 0, bool isTerm = false)
+        : type(std::move(nodeType)),
+          text(std::move(nodeText)),
+          line(ln),
+          col(cl),
+          terminal(isTerm) {}
 
-    bool isTerminal() const { return children.empty(); }
+    // 推荐给成员 2 的工厂函数：构造非终结符节点
+    static std::unique_ptr<ASTNode> makeNode(std::string nodeType, int ln = 0, int cl = 0) {
+        return std::make_unique<ASTNode>(std::move(nodeType), "", ln, cl, false);
+    }
+
+    // 推荐给成员 2 的工厂函数：由 Token 构造终结符节点（自动处理大小写归一化）
+    static std::unique_ptr<ASTNode> makeTerminal(const Token& tok) {
+        return std::make_unique<ASTNode>(tok.symbol, tok.normalizedText(), tok.line, tok.col, true);
+    }
+
+    bool isTerminal() const { return terminal; }
 
     // 兼容任务书伪代码中的 ctx->getText()
     std::string getText() const {
-        if (!text.empty() || children.empty()) {
+        if (terminal || !text.empty()) {
             return text;
         }
         std::string merged;
@@ -50,8 +63,32 @@ struct ASTNode {
     }
 
     ASTNode* addChild(std::unique_ptr<ASTNode> child) {
+        if (child && line == 0 && child->line > 0) {
+            line = child->line;
+            col = child->col;
+        }
         children.push_back(std::move(child));
         return children.back().get();
+    }
+
+    // 便捷查询接口（推荐给成员 3/4，减少脆弱的魔数下标访问）
+    const ASTNode* findChild(const std::string& childType) const {
+        for (const auto& ch : children) {
+            if (ch && ch->type == childType) return ch.get();
+        }
+        return nullptr;
+    }
+
+    std::vector<const ASTNode*> findChildren(const std::string& childType) const {
+        std::vector<const ASTNode*> result;
+        for (const auto& ch : children) {
+            if (ch && ch->type == childType) result.push_back(ch.get());
+        }
+        return result;
+    }
+
+    bool hasChild(const std::string& childType) const {
+        return findChild(childType) != nullptr;
     }
 
     // 调试打印整棵 AST

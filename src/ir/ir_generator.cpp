@@ -1,17 +1,17 @@
 #include "IRGenerator.h"
+#include "ir_visitor.h"
 
 namespace cmm {
 
 IRResult IRGenerator::generate(const ASTNode* root) {
-    IRResult res;
     if (!root) {
+        IRResult res;
         res.success = false;
         res.errors.push_back("IRGenerator: AST root is null.");
         return res;
     }
-    res.success = false;
-    res.errors.push_back("IRGenerator not implemented yet (Member 3 & 4 TODO: implement AST Visitor in src/ir/).");
-    return res;
+    ir::IRVisitor visitor;
+    return visitor.run(root);
 }
 
 bool IRGenerator::emitToStream(const ASTNode* root, std::ostream& os, std::vector<std::string>* errorsOut) {

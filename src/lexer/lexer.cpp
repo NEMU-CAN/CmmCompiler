@@ -51,6 +51,8 @@ std::string toLowerAscii(const std::string& s) {
 
 Lexer::Lexer() : impl_(std::make_unique<Impl>()) {}
 Lexer::~Lexer() = default;
+Lexer::Lexer(Lexer&&) noexcept = default;
+Lexer& Lexer::operator=(Lexer&&) noexcept = default;
 
 LexResult Lexer::tokenize(const std::string& rawSource) const {
     LexResult res;

@@ -31,18 +31,36 @@ inline std::string categoryToString(TokenCategory cat) {
 
 // 成员 1 -> 成员 2 的核心数据契约
 struct Token {
-    std::string lexeme;     // 源码原始词素，如 "VoID"、"3.14"、"_X1"
-    std::string symbol;     // 归一化后的附录 1 终结符名（成员 2 直接用此字段查 SLR 表）：
-                            //   关键字 -> 小写原文（"int","void","if","else","return","const","float","main"）
-                            //   运算符/界符 -> 原文（"+","==","&&","(",")",";",...）
-                            //   标识符 -> "Ident"（注：main 按任务书同时为 KW,5，见下方约定）
-                            //   整数   -> "IntConst"
-                            //   浮点数 -> "floatConst"
-                            //   结束符 -> "EOF"
+    std::string lexeme;     // 源码原始词素，如 "VoID"、"MaIn"、"3.14"、"_X1"
+    std::string symbol;     // 归一化后的附录 1 终结符名（成员 2 一律用此字段查 SLR 表）：
+                            //   关键字（除 main）-> 小写原文："int","void","if","else","return","const","float"
+                            //   关键字 main     -> "Ident"（因附录 1 规则 11 为 funcDef -> funcType Ident '(' ...）
+                            //   普通标识符       -> "Ident"
+                            //   整数            -> "IntConst"
+                            //   浮点数          -> "floatConst"
+                            //   运算符/界符      -> 原文（"+","-","*","/","%","=",">","<","==","<=",">=","!=","&&","||","!","(",")","{","}",";",","）
+                            //   结束符          -> "EOF"
     TokenCategory category = TokenCategory::ERROR;
     std::string attr;       // 输出属性：KW/OP/SE 为编号字符串（如 "1"），IDN/INT/FLOAT 为原文，ERROR 为 "line,col"
     int line = 1;           // 1-based 行号
     int col = 1;            // 1-based 列号
+
+    // 归一化文本（供 AST 终结符和语义分析使用）：
+    //   - 关键字一律转为小写（如 "VoID"->"void", "InT"->"int", "MaIn"->"main"），
+    //     避免成员 3/4 在语义分析与 IR 生成时被 test3.sy 的大小写混写坑到；
+    //   - 标识符、字面量、运算符、界符保持源码原样。
+    std::string normalizedText() const {
+        if (category != TokenCategory::KW) {
+            return lexeme;
+        }
+        std::string lower = lexeme;
+        for (char& ch : lower) {
+            if (ch >= 'A' && ch <= 'Z') {
+                ch = static_cast<char>(ch - 'A' + 'a');
+            }
+        }
+        return lower;
+    }
 
     // 按大作业规定格式格式化单行输出：[词素]\t<[种别],[内容]>
     std::string formatLine() const {

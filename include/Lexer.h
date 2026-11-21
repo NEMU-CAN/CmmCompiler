@@ -21,6 +21,11 @@ public:
     Lexer();
     ~Lexer();
 
+    Lexer(const Lexer&) = delete;
+    Lexer& operator=(const Lexer&) = delete;
+    Lexer(Lexer&&) noexcept;
+    Lexer& operator=(Lexer&&) noexcept;
+
     // 对 C-- 源码执行 NFA -> DFA -> 最小化 DFA 扫描
     LexResult tokenize(const std::string& source) const;
 
