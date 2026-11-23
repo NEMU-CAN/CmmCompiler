@@ -1,4 +1,5 @@
 #include "Parser.h"
+#include "slr.h"
 
 namespace cmm {
 
@@ -13,8 +14,7 @@ ParseResult Parser::parse(const std::vector<Token>& /*tokens*/, std::ostream* re
 }
 
 bool Parser::dumpSLRTable(std::ostream& os) const {
-    os << "# SLR table dump not implemented yet (Member 2 TODO)\n";
-    return true;
+    return parser::slrTable().dump(os);
 }
 
 }  // namespace cmm
