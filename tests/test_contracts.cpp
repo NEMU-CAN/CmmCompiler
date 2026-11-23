@@ -57,12 +57,48 @@ int main() {
     assert(funcDef->findChildren("funcType").size() == 1);
     assert(funcDef->line == 1);  // propagated from first child
 
-    // 3. Test Parser::dumpSLRTable stub & IRGenerator null guard
+    // 3. Test the parser's trace, AST and error handling.
     cmm::Parser parser;
     std::ostringstream slrOut;
     assert(parser.dumpSLRTable(slrOut));
-    assert(!slrOut.str().empty());
+    assert(slrOut.str().find("[LR(0) items]") != std::string::npos);
+    assert(slrOut.str().find("on else: shift") != std::string::npos);
 
+    std::ostringstream trace;
+    auto parsed = parser.parse(pt, &trace);
+    assert(parsed.success && parsed.root->type == "Program");
+    const auto* unit = parsed.root->findChild("compUnit");
+    assert(unit && unit->children.size() == 1);
+    const auto& fn = unit->children.front();
+    assert(fn->type == "funcDef" && fn->children.size() == 5);
+    assert(fn->children[0]->type == "funcType" && fn->children[0]->getText() == "void");
+    assert(fn->children[1]->text == "main");
+    assert(fn->findChild("block")->findChildren("blockItem").size() == 2);
+    assert(trace.str().find("\tVoID#VoID\tmove\n") != std::string::npos);
+    assert(trace.str().find("\tProgram#EOF\taccept\n") != std::string::npos);
+
+    auto nested = parser.parse(lex2.tokenize(
+        "int main(int x, float y) { if (!(x < y)) if (x) return f(x, y); else return (x); }"
+    ).parserTokens);
+    assert(nested.success);
+    const auto* nestedFn = nested.root->findChild("compUnit")->findChild("funcDef");
+    assert(nestedFn->findChild("funcType")->getText() == "int");
+    const auto* params = nestedFn->findChild("funcFParams");
+    assert(params->children.size() == 3 && params->children[1]->type == ",");
+    const auto* outer = nestedFn->findChild("block")->findChild("blockItem")->findChild("stmt");
+    assert(!outer->hasChild("else"));
+    const auto* inner = outer->findChild("stmt");
+    assert(inner->hasChild("else") && inner->findChildren("stmt").size() == 2);
+    assert(inner->findChild("stmt")->findChild("exp")->children.front()->type == "addExp");
+
+    auto empty = parser.parse(lex2.tokenize("").parserTokens);
+    assert(empty.success && empty.root->findChild("compUnit")->children.empty());
+    auto bad = parser.parse(lex2.tokenize("int main() {\n  return (1 < 2);\n}").parserTokens);
+    assert(!bad.success && !bad.root && bad.errors.front().find("2:13:") == 0);
+    auto badType = parser.parse(lex2.tokenize("float f() {}").parserTokens);
+    assert(!badType.success && badType.errors.front().find("'int' or 'void'") != std::string::npos);
+
+    // 4. Test the IRGenerator null guard.
     cmm::IRGenerator irGen;
     auto nullRes = irGen.generate(nullptr);
     assert(!nullRes.success && !nullRes.errors.empty());
