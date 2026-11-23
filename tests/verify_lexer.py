@@ -11,7 +11,9 @@ DEFAULT_EXE = os.path.join(ROOT, "build", "cmmc" + EXE_EXT)
 CORE_SRCS = [
     "src/lexer/automata.cpp",
     "src/lexer/lexer.cpp",
-    "src/parser/parser_stub.cpp",
+    "src/parser/grammar.cpp",
+    "src/parser/parser.cpp",
+    "src/parser/slr.cpp",
     "src/ir/ir_generator.cpp",
     "src/ir/ir_basic.cpp",
     "src/ir/ir_ctrl.cpp",
