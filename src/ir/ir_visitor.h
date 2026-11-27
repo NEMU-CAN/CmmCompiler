@@ -4,6 +4,7 @@
 #include "IRGenerator.h"
 
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 namespace cmm {
@@ -69,6 +70,38 @@ protected:
     }
 
     std::vector<std::string> errors_;
+
+    // Textual LLVM emitter state. Kept in the visitor so the control-flow
+    // implementation can share temporaries, scopes, and the output buffer.
+    struct Symbol {
+        std::string type;
+        std::string address;
+        std::string constantValue;
+        bool isConstant = false;
+        bool isGlobal = false;
+    };
+    struct FunctionInfo {
+        std::string returnType;
+        std::vector<std::string> parameterTypes;
+        bool defined = false;
+    };
+    std::vector<std::unordered_map<std::string, Symbol>> scopes_;
+    std::unordered_map<std::string, FunctionInfo> functions_;
+    std::string ir_;
+    std::string lastValue_;
+    std::string lastType_;
+    std::string currentFunction_;
+    std::string currentReturnType_;
+    std::string declarationType_;
+    int tempIndex_ = 0;
+    bool terminated_ = false;
+
+    std::string newTemp();
+    std::string llvmType(const std::string& type) const;
+    bool declareSymbol(const ASTNode* ctx, const std::string& name, const Symbol& symbol);
+    const Symbol* lookupSymbol(const std::string& name) const;
+    std::string evaluateConstant(const ASTNode* ctx, std::string* type = nullptr);
+    void emit(const std::string& line);
 };
 
 }  // namespace ir
