@@ -16,7 +16,7 @@ namespace ir {
 //   * 比较/逻辑运算结果统一为 i1，lastType_ 记为 "bool"；
 //   * 布尔值参与算术比较时按 0/1 的 i32 处理（zext）；
 //   * 短路求值用 alloca i1 保存中间结果，避免依赖前驱基本块（phi 需要前驱标签）；
-//   * 各 visit* 对单个子节点做类型分发，兼容语法分析器给出的扁平化 AST。
+//   * 每个 visit* 先按节点真实类型分发，兼容语法分析器可能给出的扁平/嵌套 AST。
 // ============================================================================
 
 namespace {
@@ -74,8 +74,14 @@ void IRVisitor::visitRelExp(const ASTNode* ctx) {
     if (!ctx || ctx->children.empty()) {
         return;
     }
+    // 允许其他表达式节点直接进入（分发到对应 visit*）
+    if (ctx->type == "unaryExp") { visitUnaryExp(ctx); return; }
+    if (ctx->type == "mulExp") { visitMulExp(ctx); return; }
+    if (ctx->type == "addExp") { visitAddExp(ctx); return; }
+    if (ctx->type == "primaryExp") { visitPrimaryExp(ctx); return; }
+    if (ctx->type == "eqExp") { visitEqExp(ctx); return; }
+
     if (ctx->children.size() != 3) {
-        // 单子节点：按实际类型分发（addExp / mulExp / unaryExp / primaryExp）
         const ASTNode* child = ctx->children[0].get();
         if (!child) {
             return;
@@ -127,6 +133,12 @@ void IRVisitor::visitEqExp(const ASTNode* ctx) {
     if (!ctx || ctx->children.empty()) {
         return;
     }
+    if (ctx->type == "relExp") { visitRelExp(ctx); return; }
+    if (ctx->type == "unaryExp") { visitUnaryExp(ctx); return; }
+    if (ctx->type == "addExp") { visitAddExp(ctx); return; }
+    if (ctx->type == "mulExp") { visitMulExp(ctx); return; }
+    if (ctx->type == "primaryExp") { visitPrimaryExp(ctx); return; }
+
     if (ctx->children.size() != 3) {
         const ASTNode* child = ctx->children[0].get();
         if (!child) {
@@ -178,6 +190,11 @@ void IRVisitor::visitLAndExp(const ASTNode* ctx) {
     if (!ctx || ctx->children.empty()) {
         return;
     }
+    if (ctx->type == "eqExp") { visitEqExp(ctx); return; }
+    if (ctx->type == "relExp") { visitRelExp(ctx); return; }
+    if (ctx->type == "unaryExp") { visitUnaryExp(ctx); return; }
+    if (ctx->type == "addExp") { visitAddExp(ctx); return; }
+
     if (ctx->children.size() != 3) {
         const ASTNode* child = ctx->children[0].get();
         if (!child) {
@@ -231,6 +248,11 @@ void IRVisitor::visitLOrExp(const ASTNode* ctx) {
     if (!ctx || ctx->children.empty()) {
         return;
     }
+    if (ctx->type == "lAndExp") { visitLAndExp(ctx); return; }
+    if (ctx->type == "eqExp") { visitEqExp(ctx); return; }
+    if (ctx->type == "relExp") { visitRelExp(ctx); return; }
+    if (ctx->type == "unaryExp") { visitUnaryExp(ctx); return; }
+
     if (ctx->children.size() != 3) {
         const ASTNode* child = ctx->children[0].get();
         if (!child) {
@@ -287,14 +309,18 @@ void IRVisitor::visitCond(const ASTNode* ctx) {
         if (!child) {
             return;
         }
-        if (child->type == "lAndExp") {
+        if (child->type == "lOrExp") {
+            visitLOrExp(child);
+        } else if (child->type == "lAndExp") {
             visitLAndExp(child);
         } else if (child->type == "eqExp") {
             visitEqExp(child);
         } else if (child->type == "relExp") {
             visitRelExp(child);
+        } else if (child->type == "unaryExp") {
+            visitUnaryExp(child);
         } else {
-            visitLOrExp(child);
+            visitAddExp(child);
         }
     }
     if (lastType_ != BOOL_TYPE) {
@@ -337,7 +363,8 @@ void IRVisitor::visitIfStmt(const ASTNode* ctx) {
         terminated_ = true;
     }
 
-    bool elseTerminated = true;
+    // 没有 else 时 false 分支会落到 if 之后，属于"未终结"，必须生成 merge 块
+    bool elseTerminated = false;
     if (hasElse) {
         ir_ += elseLabel + ":\n";
         terminated_ = false;

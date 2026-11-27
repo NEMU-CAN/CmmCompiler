@@ -5,8 +5,12 @@
 #include <cstdio>
 #include <memory>
 #include <string>
+#include <utility>
+#include <vector>
 
 using cmm::ASTNode;
+
+// ---------------------------------------------------------------- AST 构造辅助
 
 static std::unique_ptr<ASTNode> term(const std::string& type, const std::string& text) {
     return std::make_unique<ASTNode>(type, text, 1, 1, true);
@@ -41,23 +45,30 @@ static std::unique_ptr<ASTNode> lval(const std::string& name) {
     return a;
 }
 
+// "!x"：unaryExp(unaryOp, unaryExp(primaryExp(lVal)))
+static std::unique_ptr<ASTNode> notExp(const std::string& name) {
+    auto lv = ASTNode::makeNode("lVal"); lv->addChild(term("Ident", name));
+    auto primary = ASTNode::makeNode("primaryExp"); primary->addChild(std::move(lv));
+    auto inner = ASTNode::makeNode("unaryExp"); inner->addChild(std::move(primary));
+    auto outer = ASTNode::makeNode("unaryExp");
+    outer->addChild(term("unaryOp", "!"));
+    outer->addChild(std::move(inner));
+    return outer;
+}
+
 static std::unique_ptr<ASTNode> wrapRel(std::unique_ptr<ASTNode> node) {
     auto r = ASTNode::makeNode("relExp"); r->addChild(std::move(node)); return r;
 }
-
 static std::unique_ptr<ASTNode> wrapEq(std::unique_ptr<ASTNode> node) {
     auto e = ASTNode::makeNode("eqExp"); e->addChild(std::move(node)); return e;
 }
-
 static std::unique_ptr<ASTNode> wrapAnd(std::unique_ptr<ASTNode> node) {
     auto a = ASTNode::makeNode("lAndExp"); a->addChild(std::move(node)); return a;
 }
-
 static std::unique_ptr<ASTNode> wrapOr(std::unique_ptr<ASTNode> node) {
     auto o = ASTNode::makeNode("lOrExp"); o->addChild(std::move(node)); return o;
 }
 
-// relExp: lhs op rhs
 static std::unique_ptr<ASTNode> rel(std::unique_ptr<ASTNode> lhs, const std::string& op,
                                     std::unique_ptr<ASTNode> rhs) {
     auto e = ASTNode::makeNode("relExp");
@@ -132,44 +143,99 @@ static std::unique_ptr<ASTNode> ifStmt(std::unique_ptr<ASTNode> cond,
     return s;
 }
 
+static void addBlockItem(ASTNode* block, std::unique_ptr<ASTNode> stmt) {
+    auto item = block->addChild(ASTNode::makeNode("blockItem"));
+    item->addChild(std::move(stmt));
+}
+
+template <typename... Args>
+static std::unique_ptr<ASTNode> blockOf(Args&&... stmts) {
+    auto block = ASTNode::makeNode("block");
+    block->addChild(term("{", "{"));
+    (addBlockItem(block.get(), std::forward<Args>(stmts)), ...);
+    block->addChild(term("}", "}"));
+    return block;
+}
+
+static std::unique_ptr<ASTNode> funcDef(const std::string& name,
+                                        std::vector<std::pair<std::string, std::string>> params,
+                                        std::unique_ptr<ASTNode> body) {
+    auto fn = ASTNode::makeNode("funcDef");
+    auto ft = fn->addChild(ASTNode::makeNode("funcType"));
+    ft->addChild(term("int", "int"));
+    fn->addChild(term("Ident", name));
+    fn->addChild(term("(", "("));
+    if (!params.empty()) {
+        auto formal = fn->addChild(ASTNode::makeNode("funcFParams"));
+        for (const auto& p : params) {
+            auto param = formal->addChild(ASTNode::makeNode("funcFParam"));
+            auto bt = param->addChild(ASTNode::makeNode("bType"));
+            bt->addChild(term("int", p.first));
+            param->addChild(term("Ident", p.second));
+        }
+    }
+    fn->addChild(term(")", ")"));
+    fn->addChild(std::move(body));
+    return fn;
+}
+
+static std::unique_ptr<ASTNode> varDeclStmt(const std::string& name) {
+    auto itemDecl = ASTNode::makeNode("decl");
+    auto varDecl = itemDecl->addChild(ASTNode::makeNode("varDecl"));
+    auto bt = varDecl->addChild(ASTNode::makeNode("bType"));
+    bt->addChild(term("int", "int"));
+    auto def = varDecl->addChild(ASTNode::makeNode("varDef"));
+    def->addChild(term("Ident", name));
+    varDecl->addChild(term(";", ";"));
+    return itemDecl;
+}
+
 int main() {
     auto program = ASTNode::makeNode("Program");
     auto unit = program->addChild(ASTNode::makeNode("compUnit"));
-    auto fn = unit->addChild(ASTNode::makeNode("funcDef"));
-    auto ft = fn->addChild(ASTNode::makeNode("funcType")); ft->addChild(term("int", "int"));
-    fn->addChild(term("Ident", "main")); fn->addChild(term("(", "(")); fn->addChild(term(")", ")"));
-    auto block = fn->addChild(ASTNode::makeNode("block")); block->addChild(term("{", "{"));
 
-    // int x;
-    auto item = block->addChild(ASTNode::makeNode("blockItem"));
-    auto decl = item->addChild(ASTNode::makeNode("decl"));
-    auto varDecl = decl->addChild(ASTNode::makeNode("varDecl"));
-    auto bt = varDecl->addChild(ASTNode::makeNode("bType")); bt->addChild(term("int", "int"));
-    auto def = varDecl->addChild(ASTNode::makeNode("varDef")); def->addChild(term("Ident", "x"));
-    varDecl->addChild(term(";", ";"));
-    block->addChild(term(";", ";"));
+    // ---- main：if/else + && + || + 无 else 的 if + 嵌套 if ----
+    {
+        auto xDecl = varDeclStmt("x");
+        auto x3 = assignStmt("x", 3);
 
-    // x = 3;
-    item = block->addChild(ASTNode::makeNode("blockItem"));
-    item->addChild(assignStmt("x", 3));
+        auto andCond = condOf(land(wrapEq(rel(lval("x"), ">", number(2))),
+                                   wrapEq(rel(lval("x"), "<", number(10)))));
+        auto ifAnd = ifStmt(std::move(andCond), assignStmt("x", 1), assignStmt("x", 0));
 
-    // if (x > 2 && x < 10) { x = 1; } else { x = 0; }
-    auto andCond = condOf(land(wrapEq(rel(lval("x"), ">", number(2))),
-                               wrapEq(rel(lval("x"), "<", number(10)))));
-    auto thenStmt = assignStmt("x", 1);
-    auto elseStmt = assignStmt("x", 0);
-    item = block->addChild(ASTNode::makeNode("blockItem"));
-    item->addChild(ifStmt(std::move(andCond), std::move(thenStmt), std::move(elseStmt)));
+        auto orCond = condOf(lor(wrapAnd(eq(lval("x"), "==", number(1))),
+                                 wrapEq(rel(floatNumber("3.5"), "<", floatNumber("4.0")))));
+        auto ifOr = ifStmt(std::move(orCond), returnStmt(lval("x")), returnStmt(number(0)));
 
-    // if (x == 1 || 3.5 < 4.0) { return x; } else { return 0; }
-    auto orCond = condOf(lor(wrapAnd(eq(lval("x"), "==", number(1))),
-                             wrapEq(rel(floatNumber("3.5"), "<", floatNumber("4.0")))));
-    item = block->addChild(ASTNode::makeNode("blockItem"));
-    item->addChild(ifStmt(std::move(orCond),
-                          returnStmt(lval("x")),
-                          returnStmt(number(0))));
-    block->addChild(term("}", "}"));
+        auto body = blockOf(std::move(xDecl), std::move(x3), std::move(ifAnd), std::move(ifOr));
+        unit->addChild(funcDef("main", {}, std::move(body)));
+    }
 
+    // ---- early：if 无 else，then 分支 return ----
+    {
+        auto cond = condOf(wrapOr(wrapAnd(wrapEq(rel(lval("y"), ">", number(0))))));
+        auto ifNoElse = ifStmt(std::move(cond), returnStmt(number(1)));
+        auto body = blockOf(std::move(ifNoElse), returnStmt(number(0)));
+        unit->addChild(funcDef("early", {{"int", "y"}}, std::move(body)));
+    }
+
+    // ---- mixed：int 与 float 混合比较（需要 sitofp） ----
+    {
+        auto cond = condOf(wrapOr(wrapAnd(wrapEq(rel(lval("x"), "<", floatNumber("3.5"))))));
+        auto ifMixed = ifStmt(std::move(cond), returnStmt(number(1)), returnStmt(number(0)));
+        auto body = blockOf(std::move(ifMixed));
+        unit->addChild(funcDef("mixed", {{"int", "x"}}, std::move(body)));
+    }
+
+    // ---- nested：嵌套 if + 条件里用 ! ----
+    {
+        auto inner = ifStmt(condOf(wrapOr(wrapAnd(wrapEq(rel(lval("x"), ">", number(0)))))),
+                            assignStmt("x", 2), assignStmt("x", -1));
+        auto outer = ifStmt(condOf(wrapOr(wrapAnd(wrapEq(eq(notExp("x"), "==", number(0)))))),
+                            std::move(inner));
+        auto body = blockOf(std::move(outer), returnStmt(lval("x")));
+        unit->addChild(funcDef("nested", {{"int", "x"}}, std::move(body)));
+    }
     cmm::IRGenerator generator;
     const cmm::IRResult result = generator.generate(program.get());
     if (!result.success) {
@@ -181,15 +247,24 @@ int main() {
 
     const std::string& ir = result.irText;
     std::printf("%s\n", ir.c_str());
+
+    assert(ir.find("define i32 @main()") != std::string::npos);
+    assert(ir.find("define i32 @early(i32 %arg0)") != std::string::npos);
+    assert(ir.find("define i32 @mixed(i32 %arg0)") != std::string::npos);
+    assert(ir.find("define i32 @nested(i32 %arg0)") != std::string::npos);
+
     assert(ir.find("icmp sgt i32") != std::string::npos);       // x > 2
     assert(ir.find("icmp slt i32") != std::string::npos);       // x < 10
+    assert(ir.find("icmp eq i32") != std::string::npos);        // x == 1
+    assert(ir.find("fcmp olt float") != std::string::npos);     // 3.5 < 4.0
+    assert(ir.find("sitofp i32") != std::string::npos);         // int -> float
     assert(ir.find("br i1") != std::string::npos);              // 条件跳转
     assert(ir.find("land.end.") != std::string::npos);          // && 短路块
     assert(ir.find("lor.end.") != std::string::npos);           // || 短路块
+    assert(ir.find("if.end.") != std::string::npos);            // if 汇合块
     assert(ir.find("load i1") != std::string::npos);            // 短路结果回读
-    assert(ir.find("fcmp olt float") != std::string::npos);     // 浮点比较
-    assert(ir.find("icmp eq i32") != std::string::npos);        // == 比较
     assert(ir.find("ret i32") != std::string::npos);
 
+    std::fprintf(stderr, "[member4 smoke] OK: %zu bytes IR\n", ir.size());
     return 0;
 }
