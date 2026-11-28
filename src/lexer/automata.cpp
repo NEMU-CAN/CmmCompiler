@@ -52,10 +52,7 @@ int newState(NFA* nfa) {
     }
     int index = nfa->count++;
     NFAState* state = &nfa->states[index];
-    std::memset(state, 0, sizeof(*state));
-    state->out[0] = -1;
-    state->out[1] = -1;
-    state->accept = -1;
+    *state = NFAState{};
     return index;
 }
 
@@ -297,7 +294,7 @@ int lookupRuleCode(const LexRule& rule) {
 }  // namespace
 
 void buildNFA(NFA* nfa) {
-    std::memset(nfa, 0, sizeof(*nfa));
+    nfa->count = 0;
     nfa->start = newState(nfa);
     int hub = nfa->start;
     for (int r = 0; r < RULE_COUNT; ++r) {
@@ -317,7 +314,10 @@ void buildNFA(NFA* nfa) {
 }
 
 void determinize(const NFA* nfa, DFA* dfa) {
-    std::memset(dfa, 0, sizeof(*dfa));
+    std::memset(dfa->transitions, 0, sizeof(dfa->transitions));
+    std::memset(dfa->accept, 0, sizeof(dfa->accept));
+    dfa->count = 0;
+    dfa->start = 0;
     dfa->dead = -1;
     StateSet start{};
     insert(&start, nfa->start);
@@ -343,7 +343,11 @@ void minimizeDFA(const DFA* dfa, DFA* minimal) {
     int partition[MAX_DFA];
     int next[MAX_DFA];
     int representative[MAX_DFA];
-    std::memset(minimal, 0, sizeof(*minimal));
+    std::memset(minimal->transitions, 0, sizeof(minimal->transitions));
+    std::memset(minimal->accept, 0, sizeof(minimal->accept));
+    minimal->count = 0;
+    minimal->start = 0;
+    minimal->dead = -1;
 
     int count = 0;
     for (int i = 0; i < dfa->count; ++i) {

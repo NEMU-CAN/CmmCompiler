@@ -109,7 +109,7 @@
 | `exp` | `[addExp]` | |
 | `cond` | `[lOrExp]` | |
 | `lVal` | `[Ident]` | `lVal->getText()` 为变量名 |
-| `primaryExp` | `["(", exp, ")"]` 或 `[lVal]` 或 `[number]` | |
+| `primaryExp` | `["(", exp, ")"]`、`["(", cond, ")"]`、`[lVal]` 或 `[number]` | 条件语句中含比较/逻辑运算的括号（如 `if (!(a != b))`）生成 `["(", cond, ")"]`，IR 层需同时处理 `exp` 与 `cond` |
 | `number` | `[IntConst]` 或 `[floatConst]` | 看 `children[0]->type` 区分整型/浮点字面量 |
 | `unaryExp` | ① `[primaryExp]`<br>② `[Ident, "(", (funcRParams)?, ")"]`<br>③ `[unaryOp, unaryExp]` | 通过 `children[0]->type` 区分；无实参时不含 `funcRParams` |
 | `unaryOp` | `["+"]` 或 `["-"]` 或 `["!"]` | `unaryOp->getText()` 为操作符 |
