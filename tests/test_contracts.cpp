@@ -98,10 +98,20 @@ int main() {
     auto badType = parser.parse(lex2.tokenize("float f() {}").parserTokens);
     assert(!badType.success && badType.errors.front().find("'int' or 'void'") != std::string::npos);
 
-    // 4. Test the IRGenerator null guard.
+    // 4. Test the IRGenerator null guard and end-to-end parenthesized cond + unary '!'.
     cmm::IRGenerator irGen;
     auto nullRes = irGen.generate(nullptr);
     assert(!nullRes.success && !nullRes.errors.empty());
+
+    auto condParsed = parser.parse(lex2.tokenize(
+        "int main() { int a = !0; int b = 3; float pi = 3.14; if (!(a != b) && !a) { return 1; } return 0; }"
+    ).parserTokens);
+    assert(condParsed.success);
+    auto condIr = irGen.generate(condParsed.root.get());
+    assert(condIr.success);
+    assert(condIr.irText.find("icmp ne i32") != std::string::npos);
+    assert(condIr.irText.find("xor i1") != std::string::npos);
+    assert(condIr.irText.find("icmp eq i32 3.14") == std::string::npos);
 
     std::cout << "[PASS] All C++ interface contracts verified!\n";
     return 0;

@@ -294,8 +294,27 @@ void IRVisitor::visitUnaryExp(const ASTNode* ctx) {
     if (ctx->children.size() == 1) { visitPrimaryExp(ctx->children[0].get()); return; }
     if (ctx->children[0]->type == "unaryOp") {
         const std::string op = ctx->children[0]->getText(); visitUnaryExp(ctx->children[1].get());
-        if (op == "-") { std::string out = newTemp(); emit(out + " = sub i32 0, " + lastValue_); lastValue_ = out; }
-        else if (op == "!") { std::string out = newTemp(); emit(out + " = icmp eq i32 " + lastValue_ + ", 0"); std::string cast = newTemp(); emit(cast + " = zext i1 " + out + " to i32"); lastValue_ = cast; }
+        if (op == "-") {
+            std::string out = newTemp();
+            if (lastType_ == "float") {
+                emit(out + " = fsub float 0.000000e+00, " + lastValue_);
+                lastValue_ = out;
+                lastType_ = "float";
+            } else {
+                std::string asInt = convertValue(lastValue_, lastType_, "int", ctx);
+                emit(out + " = sub i32 0, " + asInt);
+                lastValue_ = out;
+                lastType_ = "int";
+            }
+        } else if (op == "!") {
+            std::string asBool = toBool(lastValue_, lastType_);
+            std::string neg = newTemp();
+            emit(neg + " = xor i1 " + asBool + ", true");
+            std::string cast = newTemp();
+            emit(cast + " = zext i1 " + neg + " to i32");
+            lastValue_ = cast;
+            lastType_ = "int";
+        }
         return;
     }
     if (ctx->children[0]->type == "Ident") {
@@ -319,6 +338,7 @@ void IRVisitor::visitUnaryExp(const ASTNode* ctx) {
 void IRVisitor::visitPrimaryExp(const ASTNode* ctx) {
     if (!ctx) return;
     if (ctx->hasChild("exp")) visitExp(ctx->findChild("exp"));
+    else if (ctx->hasChild("cond")) visitCond(ctx->findChild("cond"));
     else if (ctx->hasChild("lVal")) visitLVal(ctx->findChild("lVal"));
     else if (ctx->hasChild("number")) visitNumber(ctx->findChild("number"));
 }
