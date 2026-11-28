@@ -60,6 +60,13 @@ protected:
     void visitEqExp(const ASTNode* ctx);
     void visitRelExp(const ASTNode* ctx);
 
+    // --- 成员 4 公共辅助（实现于 src/ir/ir_ctrl.cpp） ---
+    // 把任意类型的值转换为 i1（条件判断用）
+    std::string toBool(const std::string& value, const std::string& type);
+    // 类型转换：bool/int/float 之间按 LLVM 规则插入 zext / sitofp / fptosi
+    std::string convertValue(const std::string& value, const std::string& from,
+                             const std::string& to, const ASTNode* ctx);
+
     // 公共报错收集
     void addError(const ASTNode* ctx, const std::string& msg) {
         std::string prefix;
