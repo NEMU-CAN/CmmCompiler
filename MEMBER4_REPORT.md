@@ -85,11 +85,15 @@ llvm-as build/member4_ir.ll -o /dev/null
 
 验证环境：LLVM 18.1.3 `llvm-as`，生成的 4 个函数 IR **全部合法**。
 
-## 4. 已知限制（不属于本文件）
+## 4. 浮点支持的收尾修复（fix/ir-float 分支）
 
-- `src/ir/ir_basic.cpp`（成员 3）的四则运算固定发射 `add/sub/mul/sdiv/srem`，
-  `float` 表达式会生成 `add float` 这种非法 IR，需要改成 `fadd/fsub/fmul/fdiv`。
-  该文件归成员 3 维护，本 PR 未改动，建议同步给他修复。
+端到端联调时发现 `src/ir/ir_basic.cpp` 有两处会导致浮点程序生成非法 IR，已一并修复：
+
+- 四则运算按操作数类型选择 `fadd/fsub/fmul/fdiv`，int/float 混用时插入 `sitofp`
+- 浮点常量用 `%.17g` 打印精确值（LLVM 要求 float 常量精确可表示，
+  `3.14` 需输出为 `3.1400001049041748`）
+
+修复后 `tests/` 下全部 8 个 `.sy` 用例（含 `custom/unary_not.sy`）生成的 IR 均通过 `llvm-as` 校验。
 - `third_party/compiler_ir` 尚未提供，当前 IR 由文本方式发射；
   拿到库之后 `emit()` / `llvmType()` 可替换为 IRBuilder 调用，控制流结构不变。
 - 端到端 `--ir` 验证依赖成员 2 的 parser（当前仓库仍是 `parser_stub.cpp`）。

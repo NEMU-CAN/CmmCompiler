@@ -1,6 +1,7 @@
 #include "ir_visitor.h"
 
 #include <cstdlib>
+#include <cstdio>
 
 namespace cmm {
 namespace ir {
@@ -271,22 +272,32 @@ void IRVisitor::visitExp(const ASTNode* ctx) { if (ctx && !ctx->children.empty()
 void IRVisitor::visitAddExp(const ASTNode* ctx) {
     if (!ctx) return;
     if (ctx->children.size() == 1) { visitMulExp(ctx->children[0].get()); return; }
-    visitAddExp(ctx->children[0].get()); std::string lhs = lastValue_, type = lastType_;
+    visitAddExp(ctx->children[0].get()); std::string lhs = lastValue_, lhsType = lastType_;
     const std::string op = ctx->children[1]->getText(); visitMulExp(ctx->children[2].get());
-    std::string rhs = lastValue_; std::string out = newTemp();
-    emit(out + " = " + (op == "+" ? "add" : "sub") + " " + llvmType(type) + " " + lhs + ", " + rhs);
-    lastValue_ = out; lastType_ = type;
+    std::string rhs = lastValue_, rhsType = lastType_; std::string out = newTemp();
+    const std::string target = (lhsType == "float" || rhsType == "float") ? "float" : "int";
+    lhs = convertValue(lhs, lhsType, target, ctx);
+    rhs = convertValue(rhs, rhsType, target, ctx);
+    const std::string inst = target == "float" ? (op == "+" ? "fadd" : "fsub")
+                                               : (op == "+" ? "add" : "sub");
+    emit(out + " = " + inst + " " + llvmType(target) + " " + lhs + ", " + rhs);
+    lastValue_ = out; lastType_ = target;
 }
 
 void IRVisitor::visitMulExp(const ASTNode* ctx) {
     if (!ctx) return;
     if (ctx->children.size() == 1) { visitUnaryExp(ctx->children[0].get()); return; }
-    visitMulExp(ctx->children[0].get()); std::string lhs = lastValue_, type = lastType_;
+    visitMulExp(ctx->children[0].get()); std::string lhs = lastValue_, lhsType = lastType_;
     const std::string op = ctx->children[1]->getText(); visitUnaryExp(ctx->children[2].get());
-    std::string rhs = lastValue_; std::string out = newTemp();
-    const std::string inst = op == "*" ? "mul" : (op == "/" ? "sdiv" : "srem");
-    emit(out + " = " + inst + " " + llvmType(type) + " " + lhs + ", " + rhs);
-    lastValue_ = out; lastType_ = type;
+    std::string rhs = lastValue_, rhsType = lastType_; std::string out = newTemp();
+    const std::string target = (lhsType == "float" || rhsType == "float") ? "float" : "int";
+    lhs = convertValue(lhs, lhsType, target, ctx);
+    rhs = convertValue(rhs, rhsType, target, ctx);
+    std::string inst;
+    if (target == "float") inst = op == "*" ? "fmul" : "fdiv";
+    else inst = op == "*" ? "mul" : (op == "/" ? "sdiv" : "srem");
+    emit(out + " = " + inst + " " + llvmType(target) + " " + lhs + ", " + rhs);
+    lastValue_ = out; lastType_ = target;
 }
 
 void IRVisitor::visitUnaryExp(const ASTNode* ctx) {
@@ -354,7 +365,18 @@ void IRVisitor::visitLVal(const ASTNode* ctx) {
 
 void IRVisitor::visitNumber(const ASTNode* ctx) {
     if (!ctx || ctx->children.empty()) return;
-    const ASTNode* n = ctx->children[0].get(); lastValue_ = n->getText(); lastType_ = n->type == "floatConst" ? "float" : "int";
+    const ASTNode* n = ctx->children[0].get();
+    if (n->type == "floatConst") {
+        // LLVM 要求浮点常量精确可表示，用 %.17g 打印 float 的精确值（如 3.1400001049041748e+00）
+        const float value = std::strtof(n->getText().c_str(), nullptr);
+        char buffer[64];
+        std::snprintf(buffer, sizeof buffer, "%.17g", static_cast<double>(value));
+        lastValue_ = buffer;
+        lastType_ = "float";
+        return;
+    }
+    lastValue_ = n->getText();
+    lastType_ = "int";
 }
 
 void IRVisitor::visitConstExp(const ASTNode* ctx) {
